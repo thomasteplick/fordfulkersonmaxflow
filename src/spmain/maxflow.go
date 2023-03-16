@@ -11,11 +11,13 @@ is the maximum flow that the edge can support.  The flow for each edge as well a
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"math"
 	"math/cmplx"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"text/template"
@@ -38,6 +40,7 @@ const (
 	networkRowsMax               = 10
 	networkColsMin               = 2
 	networkRowsMin               = 2
+	fileFlowGraph                = "flowgraph.csv" // rows, columns, and edges
 )
 
 // FlowEdges are the links between vertices v and w in the s-t flow network
@@ -101,7 +104,7 @@ func (fe *FlowEdge) residualCapacityTo(vertex int) int {
 	}
 }
 
-// addResidualFlowTo adds flow to vertex
+// addResidualFlowTo adds flow delta to vertex
 func (fe *FlowEdge) addResidualFlowTo(vertex int, delta int) {
 	if vertex == fe.v {
 		fe.flow -= delta
@@ -126,189 +129,256 @@ func (ff *FordFulkerson) findMaxFlow(r *http.Request) error {
 	// need the rows and columns in the flow network
 	networkRows := r.PostFormValue("netrows")
 	networkCols := r.PostFormValue("netcols")
-	var err error
+	var (
+		err         error
+		numVertices int
+		source      int
+		sink        int
+	)
+
+	// Open the .csv to get the flow graph data for this row/column configuration
 	if len(networkRows) == 0 || len(networkCols) == 0 {
-		return fmt.Errorf("network rows or network columns not set")
-	}
-	ff.networkRows, err = strconv.Atoi(networkRows)
-	if err != nil {
-		fmt.Printf("network rows error: %v\n", err)
-		return err
-	}
-	ff.networkCols, err = strconv.Atoi(networkCols)
-	if err != nil {
-		fmt.Printf("network columns Atoi error: %v\n", err)
-		return err
-	}
-
-	if ff.networkCols < networkColsMin || ff.networkRows < networkRowsMin ||
-		ff.networkCols > networkColsMax || ff.networkRows > networkRowsMax {
-		return fmt.Errorf("number of network rows and/or columns are invalid")
-	}
-
-	// number of vertices is source + sink + networkRows*networkCols
-	numVertices := ff.networkRows*ff.networkCols + 2
-
-	// Create the adjacency list, source vertex is the first one, sink is the last one,
-	// row-wise numbering of vertices in the flow network between source and sink
-	source := 0
-	sink := numVertices - 1
-
-	// make adjacency list of FlowEdges, each vertex gets a map of edges
-	ff.adj = make([]map[int]*FlowEdge, numVertices)
-
-	ff.adj[source] = make(map[int]*FlowEdge)
-	ff.adj[sink] = make(map[int]*FlowEdge)
-
-	// Connections for source and sink vertex
-	for i := source; i < ff.networkRows; i++ {
-		otherSource := i*ff.networkCols + 1
-		// get the capacity in the webpage, if any
-		val := r.PostFormValue(fmt.Sprintf("%d-%d", i, otherSource))
-		// default capacity if none assigned by user
-		cap := 1
-		if len(val) > 0 {
-			cap, err = strconv.Atoi(val)
-			if err != nil {
-				fmt.Errorf("capacity string conversion to int error: %v\n", err)
-				cap = 1
-			}
+		f, err := os.Open(fileFlowGraph)
+		if err != nil {
+			fmt.Printf("Open file %s error: %v\n", fileFlowGraph, err)
 		}
-		ff.adj[source][otherSource] = &FlowEdge{v: source, w: otherSource, capacity: cap}
-
-		otherSink := otherSource + ff.networkCols - 1
-		val = r.PostFormValue(fmt.Sprintf("%d-%d", i, otherSink))
-		// default capacity if none assigned by user
-		cap = 1
-		if len(val) > 0 {
-			cap, err = strconv.Atoi(val)
-			if err != nil {
-				fmt.Errorf("capacity string conversion to int error: %v\n", err)
-				cap = 1
-			}
+		defer f.Close()
+		input := bufio.NewScanner(f)
+		input.Scan()
+		line := input.Text()
+		// Each line has comma-separated values
+		values := strings.Split(line, ",")
+		var rows, cols int
+		if rows, err = strconv.Atoi(values[0]); err != nil {
+			fmt.Printf("String %s conversion to int error: %v\n", values[0], err)
+			return err
 		}
-		ff.adj[sink][otherSink] = &FlowEdge{v: otherSink, w: sink, capacity: cap}
-	}
 
-	// Make the network connections for forward flow direction (to the right)
-	for i := source + 1; i < sink; i++ {
-		ff.adj[i] = make(map[int]*FlowEdge)
-		// first column
-		if i%ff.networkCols == 1 {
-			val := r.PostFormValue(fmt.Sprintf("%d-%d", i, i+1))
+		if cols, err = strconv.Atoi(values[1]); err != nil {
+			fmt.Printf("String %s conversion to int error: %v\n", values[1], err)
+			return err
+		}
+
+		ff.networkRows = rows
+		ff.networkCols = cols
+
+		// number of vertices is source + sink + networkRows*networkCols
+		numVertices = ff.networkRows*ff.networkCols + 2
+
+		source = 0
+		sink = numVertices - 1
+
+		// make adjacency list of FlowEdges, each vertex gets a map of edges
+		ff.adj = make([]map[int]*FlowEdge, numVertices)
+
+		for input.Scan() {
+			line := input.Text()
+			// Each line has comma-separated values
+			values := strings.Split(line, ",")
+			var v, w, cap, flow int
+			if v, err = strconv.Atoi(values[0]); err != nil {
+				fmt.Printf("String %s conversion to int error: %v\n", values[0], err)
+				continue
+			}
+			if w, err = strconv.Atoi(values[1]); err != nil {
+				fmt.Printf("String %s conversion to int error: %v\n", values[1], err)
+				continue
+			}
+			if cap, err = strconv.Atoi(values[2]); err != nil {
+				fmt.Printf("String %s conversion to int error: %v\n", values[2], err)
+				continue
+			}
+			if flow, err = strconv.Atoi(values[3]); err != nil {
+				fmt.Printf("String %s conversion to int error: %v\n", values[3], err)
+				continue
+			}
+			ff.adj[v][w] = &FlowEdge{v: v, w: w, capacity: cap, flow: flow}
+		}
+	} else { // Create the flow graph for this row/column configuration
+
+		ff.networkRows, err = strconv.Atoi(networkRows)
+		if err != nil {
+			fmt.Printf("network rows error: %v\n", err)
+			return err
+		}
+		ff.networkCols, err = strconv.Atoi(networkCols)
+		if err != nil {
+			fmt.Printf("network columns Atoi error: %v\n", err)
+			return err
+		}
+
+		if ff.networkCols < networkColsMin || ff.networkRows < networkRowsMin ||
+			ff.networkCols > networkColsMax || ff.networkRows > networkRowsMax {
+			return fmt.Errorf("number of network rows and/or columns are invalid")
+		}
+
+		// number of vertices is source + sink + networkRows*networkCols
+		numVertices = ff.networkRows*ff.networkCols + 2
+
+		// Create the adjacency list, source vertex is the first one, sink is the last one,
+		// row-wise numbering of vertices in the flow network between source and sink
+		source = 0
+		sink = numVertices - 1
+
+		// make adjacency list of FlowEdges, each vertex gets a map of edges
+		ff.adj = make([]map[int]*FlowEdge, numVertices)
+
+		ff.adj[source] = make(map[int]*FlowEdge)
+		ff.adj[sink] = make(map[int]*FlowEdge)
+
+		// Connections for source and sink vertex
+		for i := source; i < ff.networkRows; i++ {
+			otherSource := i*ff.networkCols + 1
+			// get the capacity in the webpage, if any
+			val := r.PostFormValue(fmt.Sprintf("%d-%d", i, otherSource))
+			// default capacity if none assigned by user
 			cap := 1
 			if len(val) > 0 {
 				cap, err = strconv.Atoi(val)
 				if err != nil {
-					fmt.Errorf("capacity string conversion to int error: %v\n", err)
+					fmt.Printf("capacity string conversion to int error: %v\n", err)
 					cap = 1
 				}
 			}
-			// right connection
-			ff.adj[i][i+1] = &FlowEdge{v: i, w: i + 1, capacity: cap}
-			// down right connection
-			if i < numVertices-1-ff.networkCols {
-				val := r.PostFormValue(fmt.Sprintf("%d-%d", i, i+ff.networkCols+1))
-				cap := 1
-				if len(val) > 0 {
-					cap, err = strconv.Atoi(val)
-					if err != nil {
-						fmt.Errorf("capacity string conversion to int error: %v\n", err)
-						cap = 1
-					}
-				}
-				ff.adj[i][i+ff.networkCols+1] = &FlowEdge{v: i, w: i + ff.networkCols + 1, capacity: cap}
-			}
-			// up right connection
-			if i > ff.networkCols {
-				val := r.PostFormValue(fmt.Sprintf("%d-%d", i, i-ff.networkCols+1))
-				cap := 1
-				if len(val) > 0 {
-					cap, err = strconv.Atoi(val)
-					if err != nil {
-						fmt.Errorf("capacity string conversion to int error: %v\n", err)
-						cap = 1
-					}
-				}
-				ff.adj[i][i-ff.networkCols+1] = &FlowEdge{v: i, w: i - ff.networkCols + 1, capacity: cap}
-			}
-		} else if i%ff.networkCols == 0 { // last column
-			// right to sink reference
-			ff.adj[i][sink] = ff.adj[sink][i]
-		} else { // all other columns
-			val := r.PostFormValue(fmt.Sprintf("%d-%d", i, i+1))
-			cap := 1
+			ff.adj[source][otherSource] = &FlowEdge{v: source, w: otherSource, capacity: cap}
+
+			otherSink := otherSource + ff.networkCols - 1
+			val = r.PostFormValue(fmt.Sprintf("%d-%d", i, otherSink))
+			// default capacity if none assigned by user
+			cap = 1
 			if len(val) > 0 {
 				cap, err = strconv.Atoi(val)
 				if err != nil {
-					fmt.Errorf("capacity string conversion to int error: %v\n", err)
+					fmt.Printf("capacity string conversion to int error: %v\n", err)
 					cap = 1
 				}
 			}
-			// right connection
-			ff.adj[i][i+1] = &FlowEdge{v: i, w: i + 1, capacity: cap}
-			// down right connection
-			if i < numVertices-1-ff.networkCols {
-				val := r.PostFormValue(fmt.Sprintf("%d-%d", i, i+ff.networkCols+1))
+			ff.adj[sink][otherSink] = &FlowEdge{v: otherSink, w: sink, capacity: cap}
+		}
+
+		// Make the network connections for forward flow direction (to the right)
+		for i := source + 1; i < sink; i++ {
+			ff.adj[i] = make(map[int]*FlowEdge)
+			// first column
+			if i%ff.networkCols == 1 {
+				val := r.PostFormValue(fmt.Sprintf("%d-%d", i, i+1))
 				cap := 1
 				if len(val) > 0 {
 					cap, err = strconv.Atoi(val)
 					if err != nil {
-						fmt.Errorf("capacity string conversion to int error: %v\n", err)
+						fmt.Printf("capacity string conversion to int error: %v\n", err)
 						cap = 1
 					}
 				}
-				ff.adj[i][i+ff.networkCols+1] = &FlowEdge{v: i, w: i + ff.networkCols + 1, capacity: cap}
-			}
-			// up right connection
-			if i > ff.networkCols {
-				val := r.PostFormValue(fmt.Sprintf("%d-%d", i, i-ff.networkCols+1))
+				// right connection
+				ff.adj[i][i+1] = &FlowEdge{v: i, w: i + 1, capacity: cap}
+				// down right connection
+				if i < numVertices-1-ff.networkCols {
+					val := r.PostFormValue(fmt.Sprintf("%d-%d", i, i+ff.networkCols+1))
+					cap := 1
+					if len(val) > 0 {
+						cap, err = strconv.Atoi(val)
+						if err != nil {
+							fmt.Printf("capacity string conversion to int error: %v\n", err)
+							cap = 1
+						}
+					}
+					ff.adj[i][i+ff.networkCols+1] = &FlowEdge{v: i, w: i + ff.networkCols + 1, capacity: cap}
+				}
+				// up right connection
+				if i > ff.networkCols {
+					val := r.PostFormValue(fmt.Sprintf("%d-%d", i, i-ff.networkCols+1))
+					cap := 1
+					if len(val) > 0 {
+						cap, err = strconv.Atoi(val)
+						if err != nil {
+							fmt.Printf("capacity string conversion to int error: %v\n", err)
+							cap = 1
+						}
+					}
+					ff.adj[i][i-ff.networkCols+1] = &FlowEdge{v: i, w: i - ff.networkCols + 1, capacity: cap}
+				}
+			} else if i%ff.networkCols == 0 { // last column
+				// right to sink reference
+				ff.adj[i][sink] = ff.adj[sink][i]
+			} else { // all other columns
+				val := r.PostFormValue(fmt.Sprintf("%d-%d", i, i+1))
 				cap := 1
 				if len(val) > 0 {
 					cap, err = strconv.Atoi(val)
 					if err != nil {
-						fmt.Errorf("capacity string conversion to int error: %v\n", err)
+						fmt.Printf("capacity string conversion to int error: %v\n", err)
 						cap = 1
 					}
 				}
-				ff.adj[i][i-ff.networkCols+1] = &FlowEdge{v: i, w: i - ff.networkCols + 1, capacity: cap}
+				// right connection
+				ff.adj[i][i+1] = &FlowEdge{v: i, w: i + 1, capacity: cap}
+				// down right connection
+				if i < numVertices-1-ff.networkCols {
+					val := r.PostFormValue(fmt.Sprintf("%d-%d", i, i+ff.networkCols+1))
+					cap := 1
+					if len(val) > 0 {
+						cap, err = strconv.Atoi(val)
+						if err != nil {
+							fmt.Printf("capacity string conversion to int error: %v\n", err)
+							cap = 1
+						}
+					}
+					ff.adj[i][i+ff.networkCols+1] = &FlowEdge{v: i, w: i + ff.networkCols + 1, capacity: cap}
+				}
+				// up right connection
+				if i > ff.networkCols {
+					val := r.PostFormValue(fmt.Sprintf("%d-%d", i, i-ff.networkCols+1))
+					cap := 1
+					if len(val) > 0 {
+						cap, err = strconv.Atoi(val)
+						if err != nil {
+							fmt.Printf("capacity string conversion to int error: %v\n", err)
+							cap = 1
+						}
+					}
+					ff.adj[i][i-ff.networkCols+1] = &FlowEdge{v: i, w: i - ff.networkCols + 1, capacity: cap}
+				}
+			}
+		}
+
+		// Make the network connections for backward flow direction, use references
+		for i := source + 1; i < sink; i++ {
+			ff.adj[i] = make(map[int]*FlowEdge)
+			// first column
+			if i%ff.networkCols == 1 {
+				// left to source reference
+				ff.adj[i][source] = ff.adj[source][i]
+			} else if i%ff.networkCols == 0 { // last column
+				// left connection reference
+				ff.adj[i][i-1] = ff.adj[i-1][i]
+				// down left connection reference
+				if i < numVertices-1-ff.networkCols {
+					ff.adj[i][i+ff.networkCols-1] = ff.adj[i+ff.networkCols-1][i]
+				}
+				// up left connection reference
+				if i > ff.networkCols {
+					ff.adj[i][i-ff.networkCols-1] = ff.adj[i-ff.networkCols-1][i]
+				}
+			} else { // all other columns
+				// left connection reference
+				ff.adj[i][i-1] = ff.adj[i-1][i]
+				// down left connection reference
+				if i < numVertices-1-ff.networkCols {
+					ff.adj[i][i+ff.networkCols-1] = ff.adj[i+ff.networkCols-1][i]
+				}
+				// up left connection reference
+				if i > ff.networkCols {
+					ff.adj[i][i-ff.networkCols-1] = ff.adj[i-ff.networkCols-1][i]
+				}
 			}
 		}
 	}
 
-	// Make the network connections for backward flow direction, use references
-	for i := source + 1; i < sink; i++ {
-		ff.adj[i] = make(map[int]*FlowEdge)
-		// first column
-		if i%ff.networkCols == 1 {
-			// left to source reference
-			ff.adj[i][source] = ff.adj[source][i]
-		} else if i%ff.networkCols == 0 { // last column
-			// left connection reference
-			ff.adj[i][i-1] = ff.adj[i-1][i]
-			// down left connection reference
-			if i < numVertices-1-ff.networkCols {
-				ff.adj[i][i+ff.networkCols-1] = ff.adj[i+ff.networkCols-1][i]
-			}
-			// up left connection reference
-			if i > ff.networkCols {
-				ff.adj[i][i-ff.networkCols-1] = ff.adj[i-ff.networkCols-1][i]
-			}
-		} else { // all other columns
-			// left connection reference
-			ff.adj[i][i-1] = ff.adj[i-1][i]
-			// down left connection reference
-			if i < numVertices-1-ff.networkCols {
-				ff.adj[i][i+ff.networkCols-1] = ff.adj[i+ff.networkCols-1][i]
-			}
-			// up left connection reference
-			if i > ff.networkCols {
-				ff.adj[i][i-ff.networkCols-1] = ff.adj[i-ff.networkCols-1][i]
-			}
-		}
-	}
+	ff.edgeTo = make([]*FlowEdge, numVertices)
+	ff.marked = make([]bool, numVertices)
 
-	// Find an augmenting path in the residual network via the breadth-first search
+	// Find an augmenting path in the residual network using a breadth-first search
 	hasAugmentPath := func(s int, t int) bool {
 		// initialize marked and edgeTo
 		for i := range ff.marked {
@@ -339,9 +409,6 @@ func (ff *FordFulkerson) findMaxFlow(r *http.Request) error {
 		return ff.marked[t]
 	}
 
-	ff.edgeTo = make([]*FlowEdge, numVertices)
-	ff.marked = make([]bool, numVertices)
-
 	// Find max flow in the flow network from source to sink
 	for hasAugmentPath(source, sink) {
 
@@ -365,177 +432,132 @@ func (ff *FordFulkerson) findMaxFlow(r *http.Request) error {
 
 	}
 
+	// Save the rows, columns, and edges to a csv file
+	f, err := os.Create(fileFlowGraph)
+	if err != nil {
+		fmt.Printf("Create file %s error: %v\n", fileFlowGraph, err)
+		return err
+	}
+	defer f.Close()
+	// Save the rows and columns
+	fmt.Fprintf(f, "%d,%d\n", ff.networkRows, ff.networkCols)
+	// Save the flow edges, loop over the list of maps
+	for _, mp := range ff.adj {
+		// loop over the edges for this vertex
+		for _, e := range mp {
+			fmt.Fprintf(f, "%d,%d,%d,%d\n", e.v, e.w, e.capacity, e.flow)
+		}
+	}
+
 	return nil
 }
 
-// plotFlowNetwork draws the st-flow network in the grid and
+// location returns the complex coordinate of the vertex
+func (ff *FordFulkerson) location(vert int) complex128 {
+	// source
+	if vert == 0 {
+		return complex(0.0, float64(ff.networkRows+1)/2.0)
+	} else if vert == ff.networkCols*ff.networkRows+1 { // sink
+		return complex(float64(ff.networkCols+1), float64(ff.networkRows+1)/2.0)
+	} else {
+		return complex(float64(vert%ff.networkCols), float64(ff.networkRows-(vert/ff.networkCols)))
+	}
+}
+
+// plotFlowNetwork draws the st-flow network in the grid
 func (ff *FordFulkerson) plotFlowNetwork() error {
-	// check if the target was found in findSP
-	if len(bfsp.distTo) == 0 || bfsp.distTo[bfsp.target] == math.MaxFloat64 {
-		return fmt.Errorf("distance to vertex %d not found", bfsp.target)
-	}
 
-	var (
-		distance float64 = 0.0
-		edges    []*Edge = make([]*Edge, 0)
-	)
+	ff.plot = &PlotT{}
+	ff.plot.Grid = make([]string, rows*columns)
+	ff.plot.Xlabel = make([]string, xlabels)
+	ff.plot.Ylabel = make([]string, ylabels)
 
-	// Calculate scale factors for x and y
-	xscale := (columns - 1) / (bfsp.xmax - bfsp.xmin)
-	yscale := (rows - 1) / (bfsp.ymax - bfsp.ymin)
+	// Calculate scale factors for x and y, x axis consists of source, sink, network columns
+	xscale := float64(columns-1) / float64(ff.networkCols+1-0)
+	yscale := float64(rows-1) / float64(ff.networkRows+1-0)
 
-	beginEP := complex(bfsp.xmin, bfsp.ymin) // beginning of the Euclidean graph
-	endEP := complex(bfsp.xmax, bfsp.ymax)   // end of the Euclidean graph
-	lenEP := cmplx.Abs(endEP - beginEP)      // length of the Euclidean graph
+	// Insert the flow graph vertices and edges in the grid
+	// loop over the flow graph vertices
 
-	e := bfsp.edgeTo[bfsp.target]
-	if e.w != bfsp.target {
-		e.v, e.w = e.w, e.v
-	}
-	// start at the target and loop until source vertex is plotted to the grid
-	nedges := 0
-	for {
-		v := e.v
-		w := e.w
+	// color the vertices black
+	// color the edges connecting the vertices gray
+	// create the line y = mx + b for each edge
+	// translate complex coordinates to row/col on the grid
+	// translate row/col to slice data object []string Grid
+	// CSS selectors for background-color are "vertex" and "edge"
 
-		edges = append(edges, e)
+	beginEP := complex(0, 0)
+	endEP := complex(float64(ff.networkCols+1), float64(ff.networkRows+1))
+	lenEP := cmplx.Abs(endEP - beginEP)
 
-		start := bfsp.location[v]
-		end := bfsp.location[w]
-		x1 := real(start)
-		y1 := imag(start)
-		x2 := real(end)
-		y2 := imag(end)
-		lenEdge := cmplx.Abs(end - start)
-		distance += bfsp.graph[v][w]
-		ncells := int(columns * lenEdge / lenEP) // number of points to plot in the edge
+	for i, mp := range ff.adj {
 
-		deltaX := x2 - x1
-		stepX := deltaX / float64(ncells)
+		// Insert the edge between the vertices v, w.  Do this before marking the vertices.
+		// CSS colors the edge gray.
 
-		deltaY := y2 - y1
-		stepY := deltaY / float64(ncells)
+		for _, e := range mp {
+			// Plot forward flow edges only
+			if i != e.v {
+				continue
+			}
 
-		// loop to draw the SP edge; CSS colors the edge Orange
-		x := x1
-		y := y1
-		for i := 0; i < ncells; i++ {
-			row := int((bfsp.ymax-y)*yscale + .5)
-			col := int((x-bfsp.xmin)*xscale + .5)
-			bfsp.plot.Grid[row*columns+col] = "edgeSP"
-			x += stepX
-			y += stepY
-		}
+			// Get complex coordinates of the vertex endpoints v and w
+			beginEdge := ff.location(i)
+			endEdge := ff.location(e.w)
+			lenEdge := cmplx.Abs(endEdge - beginEdge)
+			ncells := int(columns * lenEdge / lenEP) // number of points to plot in the edge
 
-		// Mark the edge start vertex v.  CSS colors the vertex Black.
-		row := int((bfsp.ymax-y1)*yscale + .5)
-		col := int((x1-bfsp.xmin)*xscale + .5)
-		bfsp.plot.Grid[row*columns+col] = "vertex"
+			beginX := real(beginEdge)
+			endX := real(endEdge)
+			deltaX := endX - beginX
+			stepX := deltaX / float64(ncells)
 
-		// Mark the edge end vertex w.  CSS colors the vertex Black.
-		row = int((bfsp.ymax-y2)*yscale + .5)
-		col = int((x2-bfsp.xmin)*xscale + .5)
-		bfsp.plot.Grid[row*columns+col] = "vertex"
+			beginY := imag(beginEdge)
+			endY := imag(endEdge)
+			deltaY := endY - beginY
+			stepY := deltaY / float64(ncells)
 
-		vertices := len(bfsp.location)
-		nedges++
+			// loop to draw the edge
+			x := beginX
+			y := beginY
+			for i := 0; i < ncells; i++ {
+				row := int((float64(ff.networkRows)-y)*yscale + .5)
+				col := int((x-0.0)*xscale + .5)
+				ff.plot.Grid[row*columns+col] = "edge"
+				x += stepX
+				y += stepY
+			}
 
-		// Exit the loop if source is reached, we have the SP.
-		// Or an infinite loop, stop after the number of vertices
-		// in the graph is acquired.
-		if e.v == bfsp.source || nedges == vertices-1 {
-			break
-		}
+			// Mark the edge start vertex v.  CSS colors the vertex black.
+			row := int((float64(ff.networkRows)-beginY)*yscale + .5)
+			col := int((beginX-0.0)*xscale + .5)
+			ff.plot.Grid[row*columns+col] = "vertex"
 
-		// move forward to the next edge
-		e = bfsp.edgeTo[v]
-		if e.w != v {
-			e.v, e.w = e.w, e.v
+			// Mark the edge end vertex w.  CSS colors the vertex black.
+			row = int((float64(ff.networkRows)-endY)*yscale + .5)
+			col = int((endX-0.0)*xscale + .5)
+			ff.plot.Grid[row*columns+col] = "vertex"
 		}
 	}
 
-	// Draw the negative-weight edge
-	v := bfsp.negEdgeFrom
-	w := bfsp.negEdgeTo
-	start := bfsp.location[v]
-	end := bfsp.location[w]
-	x1 := real(start)
-	y1 := imag(start)
-	x2 := real(end)
-	y2 := imag(end)
-	lenEdge := cmplx.Abs(end - start)
-	ncells := int(columns * lenEdge / lenEP) // number of points to plot in the edge
-
-	deltaX := x2 - x1
-	stepX := deltaX / float64(ncells)
-
-	deltaY := y2 - y1
-	stepY := deltaY / float64(ncells)
-
-	// loop to draw the edge; CSS colors the cycle edge Yellow
-	x := x1
-	y := y1
-	for i := 0; i < ncells; i++ {
-		row := int((bfsp.ymax-y)*yscale + .5)
-		col := int((x-bfsp.xmin)*xscale + .5)
-		bfsp.plot.Grid[row*columns+col] = "edgeCycle"
-		x += stepX
-		y += stepY
+	// Construct x-axis labels
+	incr := float64(ff.networkCols+1-0.0) / (xlabels - 1)
+	x := 0.0
+	// First label is empty for alignment purposes
+	for i := range ff.plot.Xlabel {
+		ff.plot.Xlabel[i] = fmt.Sprintf("%.2f", x)
+		x += incr
 	}
 
-	// Mark the end vertices of the shortest path
-	e = bfsp.edgeTo[bfsp.target]
-	x = real(bfsp.location[e.w])
-	y = imag(bfsp.location[e.w])
-	// Mark the SP end vertex.  CSS colors the vertex Red.
-	row := int((bfsp.ymax-y)*yscale + .5)
-	col := int((x-bfsp.xmin)*xscale + .5)
-	bfsp.plot.Grid[row*columns+col] = "vertexSP2"
-	bfsp.plot.Grid[(row+1)*columns+col] = "vertexSP2"
-	bfsp.plot.Grid[(row-1)*columns+col] = "vertexSP2"
-	bfsp.plot.Grid[row*columns+col+1] = "vertexSP2"
-	bfsp.plot.Grid[row*columns+col-1] = "vertexSP2"
-
-	bfsp.plot.TargetLocation = fmt.Sprintf("(%.2f, %.2f)", x, y)
-	bfsp.plot.Target = strconv.Itoa(e.w)
-
-	// Mark the SP start vertex.  CSS colors the vertex Blue.
-	x = real(bfsp.location[bfsp.source])
-	y = imag(bfsp.location[bfsp.source])
-	row = int((bfsp.ymax-y)*yscale + .5)
-	col = int((x-bfsp.xmin)*xscale + .5)
-	bfsp.plot.Grid[row*columns+col] = "vertexSP1"
-	bfsp.plot.Grid[(row+1)*columns+col] = "vertexSP1"
-	bfsp.plot.Grid[(row-1)*columns+col] = "vertexSP1"
-	bfsp.plot.Grid[row*columns+col+1] = "vertexSP1"
-	bfsp.plot.Grid[row*columns+col-1] = "vertexSP1"
-
-	bfsp.plot.SourceLocation = fmt.Sprintf("(%.2f, %.2f)", x, y)
-	bfsp.plot.Source = strconv.Itoa(bfsp.source)
-
-	// Distance of the SP
-	bfsp.plot.DistanceSP = fmt.Sprintf("%.2f", distance)
-	if distance < 0.0 {
-		bfsp.plot.NegDistance = "negativedistance"
+	// Construct the y-axis labels
+	incr = float64(ff.networkRows-0.0) / (ylabels - 1)
+	y := 0.0
+	for i := range ff.plot.Ylabel {
+		ff.plot.Ylabel[i] = fmt.Sprintf("%.2f", y)
+		y += incr
 	}
-
-	// Negative-edge vertices and weight
-	bfsp.plot.NegativeEdgeFrom = strconv.Itoa(bfsp.negEdgeFrom)
-	bfsp.plot.NegativeEdgeTo = strconv.Itoa(bfsp.negEdgeTo)
-	bfsp.plot.NegativeWeight = fmt.Sprintf("%.2f", bfsp.negWeight)
-
-	// list of vertices on the Shortest Path
-	n := len(edges)
-	verts := make([]string, n+1)
-	for i := 0; i < n; i++ {
-		verts[n-i] = strconv.Itoa(edges[i].w)
-	}
-	verts[0] = strconv.Itoa(edges[n-1].v)
-
-	bfsp.plot.PathSP = strings.Join(verts, ", ")
 
 	return nil
-
 }
 
 // HTTP handler for /graphoptions connections
@@ -543,15 +565,59 @@ func handleGraphOptions(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "templates/graphoptions.html")
 }
 
-// showCapacities displays the FlowEdge capacities
+// showCapacities displays the FlowEdge capacities in HTML tables
 func (ff *FordFulkerson) showCapacities() error {
+	// Construct three separate HTML tables for source, sink, and the network
+	// Insert the flow capacities for the respective edges in PlotT object and
+	// apply to the HTML template
+
+	ff.plot.SourceCapacities = make([]int, ff.networkRows)
+	// source table with vertex = 0,
+	for i := 0; i < ff.networkRows; i++ {
+		ff.plot.SourceCapacities[i] = ff.adj[0][1+i*ff.networkCols].capacity
+	}
+
+	ff.plot.SinkCapacities = make([]int, ff.networkRows)
+	//  sink table with vertex = f.networkRows*ff.networkCols+1
+	for i := 0; i < ff.networkRows; i++ {
+		ff.plot.SinkCapacities[i] = ff.adj[ff.networkRows*ff.networkCols+1][i*ff.networkCols+ff.networkCols].capacity
+	}
+
+	// network table forward flow edges only (flow leaving the vertex)
+	ff.plot.NetCapacities = make([][]int, (ff.networkRows-1)*3+1)
+	for row := 0; row < (ff.networkRows-1)*3+1; row++ {
+		// one less edge than the number of vertices in each row
+		ff.plot.NetCapacities[row] = make([]int, ff.networkCols-1)
+	}
+	vStart := 1
+	for col := 0; col < ff.networkCols-1; col++ {
+		v := vStart
+		for row := 0; row < (ff.networkRows-1)*3+1; row += 3 {
+			// flow edges for the first network row
+			if v == vStart {
+				ff.plot.NetCapacities[row][col] = ff.adj[v][v+1].capacity
+				ff.plot.NetCapacities[row+1][col] = ff.adj[v][v+1+ff.networkCols].capacity
+				v += 2
+			} else if v == vStart+(ff.networkRows-1)*3 { // flow edges for the last network row
+				ff.plot.NetCapacities[row][col] = ff.adj[v][v+1].capacity
+				ff.plot.NetCapacities[row+2][col] = ff.adj[v][v+1-ff.networkCols].capacity
+				v += 2
+			} else { // all the other network rows
+				ff.plot.NetCapacities[row][col] = ff.adj[v][v+1].capacity
+				ff.plot.NetCapacities[row+1][col] = ff.adj[v][v+1+ff.networkCols].capacity
+				ff.plot.NetCapacities[row+2][col] = ff.adj[v][v+1-ff.networkCols].capacity
+				v += 3
+			}
+		}
+		vStart++
+	}
 	return nil
 }
 
 // HTTP handler for /fordfulkersoncapacity connections
 func handleFordFulkersonCapacity(w http.ResponseWriter, r *http.Request) {
 
-	// Create the Bellman Ford SP instance
+	// Create the Ford Fulkerson maxflow instance
 	fordFulkerson := &FordFulkerson{}
 
 	// Accumulate error
@@ -582,7 +648,7 @@ func handleFordFulkersonCapacity(w http.ResponseWriter, r *http.Request) {
 	if len(status) > 0 {
 		fordFulkerson.plot.Status = strings.Join(status, ", ")
 	} else {
-		fordFulkerson.plot.Status = "Enter Source and Target Vertices (0-V-1) for another SP"
+		fordFulkerson.plot.Status = "Click 'Flows' link to see edge flows"
 	}
 
 	// Write to HTTP using template and grid
@@ -591,9 +657,45 @@ func handleFordFulkersonCapacity(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// showFlows displays the FlowEdge flows in HTML tables
+func (ff *FordFulkerson) showFlows() error {
+	return nil
+}
+
 // HTTP handler for /fordfulkersonflow connections
 func handleFordFulkersonFlow(w http.ResponseWriter, r *http.Request) {
 
+	// Create the Ford Fulkerson maxflow instance
+	fordFulkerson := &FordFulkerson{}
+
+	// Accumulate error
+	status := make([]string, 0)
+
+	// Draw Flow Network into 300 x 300 cell 2px grid
+	err := fordFulkerson.plotFlowNetwork()
+	if err != nil {
+		fmt.Printf("plotSP error: %v\n", err)
+		status = append(status, err.Error())
+	}
+
+	// Show the Flow Capacities of each FlowEdge
+	err = fordFulkerson.showFlows()
+	if err != nil {
+		fmt.Printf("showFlows error: %v\n", err)
+		status = append(status, err.Error())
+	}
+
+	// Status
+	if len(status) > 0 {
+		fordFulkerson.plot.Status = strings.Join(status, ", ")
+	} else {
+		fordFulkerson.plot.Status = "Click 'Capacities' link to change capacities"
+	}
+
+	// Write to HTTP using template and grid
+	if err := tmplFormFlows.Execute(w, fordFulkerson.plot); err != nil {
+		log.Fatalf("Write to HTTP output using template with grid error: %v\n", err)
+	}
 }
 
 // main sets up the http handlers, listens, and serves http clients
