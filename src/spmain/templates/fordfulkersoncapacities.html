@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="eng">
 	<head>
-		<title>"Ford-Fulkerson Max Flow"</title>
+		<title>"Ford-Fulkerson MaxFlow"</title>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<style type="text/css">
@@ -85,51 +85,70 @@
 				color: black;
 			}
 
+			div.grid > div.edgeflow {
+				background-color:  green
+			}
 			div.grid > div.edge {
-				background-color: #ddd;
+				background-color: #eee;
 			}
 			div.grid > div.vertex {
 				background-color: #000;
-			}
-			div.grid > div.edgeSP {
-				background-color: orange;
-			}
-			div.grid > div.edgeCycle {
-				background-color: yellow;
-			}
-			.vertexSP1 {
-				color: blue;
-			}
-			.vertexSP2 {
-				color: red;
-			}
-			div.grid > div.vertexSP1 {
-				background-color: blue;
-			}
-			div.grid > div.vertexSP2 {
-				background-color: red;
-			}
-			.startvertexMSS {
-				color: #0f0;
-			}
-			div.grid > div.startvertexMSS {
-				background-color: #0f0;
 			}
 			#form {
 				margin-left: 10px;
 				width: 500px;
 			}
-			.negativeedge {
-				color: yellow;
+
+			ul li.links {
+				display: inline-block;
+				list-style-type: none;
+				margin: 20px;
 			}
-			.negativedistance {
-				background-color: red;
+
+			#table-container {
+				display: flex;
+				flex-direction: row;
+			}
+			#source-container {
+				display: flex;
+				flex-direction: column;
+			}
+			#sink-container {
+				display: flex;
+				flex-direction: column;
+			}
+			#network-container {
+				display: flex;
+				flex-direction: column;
+			}
+
+			#table-container input {
+				width: 50px;
+			}
+			.options input {
+				width: 50px;
+			}
+
+			th.flowcaps {
+				border: 2px solid black;
+				border-collapse: collapse;
+			}
+			td.flowcaps {
+				border: 1px solid lightgray;
+				border-collapse: collapse;
 			}
 
 		</style>
 	</head>
 	<body>
-		<h3>Ford-Fulkerson Max Flow</h3>
+		<h3>Ford-Fulkerson MaxFlow</h3>
+		<nav>
+			<ul>
+				<li class="links"><a href="http://127.0.0.1:8080/fordfulkersoncapacity">Capacities</a></li>
+				<li class="links"><a href="http://127.0.0.1:8080/fordfulkersonflow">Flows</a></li>
+				<li class="links"><a href="http://127.0.0.1:8080/graphoptions">Graph Options</a></li>
+			</ul>
+		</nav>
 		<div id="outer-container">
 			<div id="ylabel-container">
 				{{range .Ylabel}}
@@ -149,57 +168,59 @@
 				</div>
 			</div>
 			<div id="form">
-				<form action="http://127.0.0.1:8080/fordfulkersoncapacities" method="post">
+				<form action="http://127.0.0.1:8080/fordfulkersoncapacity" method="post">
 					<fieldset>
-						<legend>Euclidean Graph Options</legend>
+						<legend>s-t Flow Graph Options</legend>
 						<div class="options">
-							<label for="vertices">Number of vertices (2-500):</label>
-							<input type="number" id="vertices" name="vertices" min="2" max="500"  value="{{.Vertices}}" readonly />
+							<label for="netrows">Number of rows (1-10):</label>
+							<input type="number" id="netrows" name="netrows" min="1" max="10"  value="{{.NetRows}}" readonly />
+							<label for="netcolumns">Number of columns (1-10):</label>
+							<input type="number" id="netcolumns" name="netcolumns" min="1" max="10"  value="{{.NetCols}}" readonly />
 							<br />
-							<label for="location" id="startlocationlabel">MST Start Vertex Location:</label>
-							<input type="text" id="location" name="startlocation" class="startvertexMSS" value="{{.StartLocation}}" readonly />
-							<label for="distance">MST Distance: </label>
-							<input type="text" id="distance" name="distance" value="{{.Distance}}" readonly />
-							<br />
-							<label for="xstart">x start:</label>
-							<input type="number" id="xstart" name="xmin" step="0.01" value="{{.Xmin}}" readonly />
-							<label for="xend">x end:</label>
-							<input type="number" id="xend" name="xmax" step="0.01" value="{{.Xmax}}" readonly />
-							<br />
-							<label for="ystart" >y start:</label>
-							<input type="number" id="ystart" name="ymin" step="0.01" value="{{.Ymin}}" readonly />
-							<label for="yend">y end:</label>
-							<input type="number" id="yend" name="ymax" step="0.01" value="{{.Ymax}}" readonly />
-							<br />
-							<label for="sourcevert">Source Vertex:</label>
-							<input type="text" id="sourcevert" name="sourcevert" class="vertexSP1" value="{{.Source}}" required />
-							<label for="targetvert">Target Vertex:</label>
-							<input type="text" id="targetvert" name="targetvert" class="vertexSP2" value="{{.Target}}" required />
-							<br />
-							<label for="sourcelocation">Source Location:</label>
-							<input type="text" id="sourcelocation" name="sourcelocation" class="vertexSP1" value="{{.SourceLocation}}" readonly />
-							<label for="targetlocation">Target Location:</label>
-							<input type="text" id="targetlocation" name="targetlocation" class="vertexSP2" value="{{.TargetLocation}}" readonly />
-							<br />
-							<label for="pathsp">Shortest Path Vertices:</label>
-							<textarea id="pathsp" name="pathsp" cols="100" readonly>{{.PathSP}}</textarea>
-							<br />
-							<label for="distanceSP">SP Distance:</label>
-							<input type="text" id="distanceSP" name="distanceSP" class="{{.NegDistance}}" value="{{.DistanceSP}}" readonly />
-							<br />
-							<label for="negedgefrom">Negative-edge from:</label>
-							<input type ="text" id="negedgefrom" class="negativeedge" name="negedgefrom" value="{{.NegativeEdgeFrom}}" />
-							<label for="negedgeto">Negative-edge to:</label>
-							<input type="text" id="negedgeto" class="negativeedge" name="negedgeto" value="{{.NegativeEdgeTo}}" />
-							<br />
-							<label for="negweight">Negative weight:</label>
-							<input type="text" id="negweight" name="negweight" value="{{.NegativeWeight}}" />
-							<br />
+							<label for="flowedges">Number of FlowEdges:</label>
+							<input type="number" id="flowedges" name="flowedges" value="{{.FlowEdges}}" readonly />
 						</div>
 						<br />
 						<input type="submit" value="Submit" />
 						<textarea name="status" cols="100" readonly>{{.Status}}</textarea>
 					</fieldset>
+					<h3>Edge Flow Capacities</h3>
+					<div id="table-container">		
+						<table>
+							<tr><th class="flowcaps">Source</th></tr>
+							<div id="source-container">
+								{{range .SourceCapacities}}
+									<tr><td class="flowcaps">
+										<input type="number" name="{{.Name}}" value="{{.Value}}" min="0"/>
+									</td></tr>
+								{{end}}
+							</div>
+						</table>
+						<table>
+							<div id="network-container">
+								<tr><th colspan="{{.NetCols}}" class="flowcaps">Network</th></tr>
+								{{range $cells := .NetCapacities}}
+									<tr>
+										{{range $cells}}
+											<td class="flowcaps">
+												<input type="number" name="{{.Name}}" value="{{.Value}}" min="0"/>
+											</td>
+										{{end}}
+									</tr>
+								{{end}}
+							</div>
+						</table>
+						<table>
+							<div id="sink-container">
+								<tr><th class="flowcaps">Sink</th></tr>
+								{{range .SinkCapacities}}
+									<tr><td class="flowcaps">
+										<input type="number" name="{{.Name}}" value="{{.Value}}" min="0"/>
+									</td></tr>
+								{{end}}
+							</div>
+						</table>
+					</div>
 				</form>
 			</div>
 		</div>

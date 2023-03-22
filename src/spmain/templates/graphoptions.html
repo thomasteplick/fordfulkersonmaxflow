@@ -1,39 +1,39 @@
 <!DOCTYPE html>
 <html lang="eng">
 	<head>
-		<title>"Bellman Ford Shortest Paths"</title>
+		<title>"Ford Fulkerson MaxFlow"</title>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<style type="text/css">
 			.options label {
 				font-size: 12px;
 				font-family: Arial, Helvetica, sans-serif;
+				width: 200px;
+				text-align: right;
+				float: left;
 			}
-			form {
+			form, p{
 				width: 500px;
 			}
 		</style>
 	</head>
 	<body>
-		<h3>Bellman Ford Shortest Paths</h3>
+		<h3>Ford Fulkerson MaxFlow</h3>
+		<p>There is one source vertex and one sink vertex.  Enter the number of rows and 
+			columns in-between the source and sink vertices.  These will form the s-t 
+			flow network.  For example, a 10 row and 10 column flow graph will have 
+			100 vertices with 10 vertices in each row.
+		</p>
 		<div id="form">
-			<form action="http://127.0.0.1:8080/bellmanfordsp" method="post">
+			<form action="http://127.0.0.1:8080/fordfulkersoncapacity" method="post">
 				<fieldset>
-					<legend>Euclidean Graph Options</legend>
+					<legend>s-t Flow Graph Options</legend>
 					<div class="options">
-						<label for="vertices">Number of vertices (2-500):</label>
-						<input type="number" id="vertices" name="vertices" min="2" max="500"  required />
+						<label for="netrows" >Number of network rows (2-10):</label>
+						<input type="number" id="netrows" name="netrows" min="2" max="10"  required />
 						<br />
-						<label for="xstart">x start:</label>
-						<input type="number" id="xstart" name="xmin" step="0.01" required />
-						<label for="xend">x end:</label>
-						<input type="number" id="xend" name="xmax" step="0.01" required />
-						<br />
-						<label for="ystart" >y start:</label>
-						<input type="number" id="ystart" name="ymin" step="0.01" required />
-						<label for="yend">y end:</label>
-						<input type="number" id="yend" name="ymax" step="0.01" required />
-						<br />
+						<label for="netcolumns">Number of network columns (2-10):</label>
+						<input type="number" id="netcolumns" name="netcolumns" min="2" max="10"  required />
 					</div>
 					<br />
 					<input type="submit" value="Submit" />
