@@ -267,8 +267,11 @@ func (ff *FordFulkerson) findMaxFlow(r *http.Request) error {
 		otherSource := i*ff.networkCols + 1
 		// get the capacity in the webpage, if any
 		val := r.PostFormValue(fmt.Sprintf("%d-%d", source, otherSource))
-		// default capacity if none assigned by user
-		cap := 1
+		// default capacity if none assigned by user to maximize flow
+		cap := 3
+		if i == source || i == ff.networkRows-1 {
+			cap = 2
+		}
 		if len(val) > 0 {
 			cap, err = strconv.Atoi(val)
 			if err != nil {
@@ -280,8 +283,11 @@ func (ff *FordFulkerson) findMaxFlow(r *http.Request) error {
 
 		otherSink := otherSource + ff.networkCols - 1
 		val = r.PostFormValue(fmt.Sprintf("%d-%d", sink, otherSink))
-		// default capacity if none assigned by user
-		cap = 1
+		// default capacity if none assigned by user to maximize the flow
+		cap = 3
+		if i == source || i == ff.networkRows-1 {
+			cap = 2
+		}
 		if len(val) > 0 {
 			cap, err = strconv.Atoi(val)
 			if err != nil {
