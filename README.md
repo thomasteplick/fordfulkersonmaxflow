@@ -10,7 +10,9 @@ supplies the n x m network, which terminates at the sink vertex.  Clicking on th
 selections to the server, which then calculates the maximum flow with the shortest-augmenting path.  A breadth-first search
 is employed to find the shortest augmenting paths.  The resulting flow is displayed by clicking on the Flows link.  A plot of
 the flow network is diplayed on the left, with green edges carrying flow and red edges carrying no flow.  The tables on the
-right side show the amount of flow in each v-w edge, where v and w are the edge vertices.
+right side show the amount of flow in each v-w edge, where v and w are the edge vertices.  By selecting the Capacities link,
+the Capacity tables are displayed allowing you to change the edge capacities and calculate a new max flow.
 
 ![image](https://user-images.githubusercontent.com/117768679/227620601-0aa29927-ba10-401d-9370-0822f2f096ac.png)
 ![image](https://user-images.githubusercontent.com/117768679/227620363-8333452b-6642-4d57-b648-4bf64135622c.png)
+![image](https://user-images.githubusercontent.com/117768679/227643076-7033224b-0159-4a15-9e2e-72bb42f29479.png)
