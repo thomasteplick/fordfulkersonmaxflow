@@ -13,7 +13,7 @@ the flow network is diplayed on the left, with green edges carrying flow and red
 right side show the amount of flow in each v-w edge, where v and w are the edge vertices.  By selecting the Capacities link,
 the Capacity tables are displayed allowing you to change the edge capacities and calculate a new max flow.  The tables have
 entries "v-w, n", where v and w are the edge vertices and n is the flow.  The source vertex is zero (0), the sink vertex is
-n * m - 1.  The network vertices are ordered row-wise, with the first row numbered 1, 2, ..., m, the second row numbered
+n * m + 1.  The network vertices are ordered row-wise, with the first row numbered 1, 2, ..., m, the second row numbered
 m+1, m+2, ..., 2 * m.  The last vertex in the network is n * m.
 
 ![image](https://user-images.githubusercontent.com/117768679/227645848-9ea140d2-53bc-4146-a4e9-1b1862464d44.png)
