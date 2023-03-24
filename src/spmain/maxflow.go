@@ -656,20 +656,20 @@ func (ff *FordFulkerson) showCapacities() error {
 					Name: fmt.Sprintf("%d-%d", v, v+1+ff.networkCols)}
 				v += ff.networkCols
 				row += 2
-			} else if v == vStart+(ff.networkRows-1)*ff.networkCols { // flow edges for the last network row
-				ff.plot.NetCapacities[row][col] = Cell{Value: strconv.Itoa(ff.adj[v][v+1].capacity), Name: fmt.Sprintf("%d-%d", v, v+1)}
-				ff.plot.NetCapacities[row+1][col] = Cell{Value: strconv.Itoa(ff.adj[v][v+1-ff.networkCols].capacity),
+			} else if v > vStart && v < vStart+(ff.networkRows-1)*ff.networkCols { // flow edges between first and last rows
+				ff.plot.NetCapacities[row][col] = Cell{Value: strconv.Itoa(ff.adj[v][v+1-ff.networkCols].capacity),
 					Name: fmt.Sprintf("%d-%d", v, v+1-ff.networkCols)}
-				v += ff.networkCols
-				row += 2
-			} else { // all the other network rows
-				ff.plot.NetCapacities[row][col] = Cell{Value: strconv.Itoa(ff.adj[v][v+1].capacity), Name: fmt.Sprintf("%d-%d", v, v+1)}
-				ff.plot.NetCapacities[row+1][col] = Cell{Value: strconv.Itoa(ff.adj[v][v+1+ff.networkCols].capacity),
+				ff.plot.NetCapacities[row+1][col] = Cell{Value: strconv.Itoa(ff.adj[v][v+1].capacity), Name: fmt.Sprintf("%d-%d", v, v+1)}
+				ff.plot.NetCapacities[row+2][col] = Cell{Value: strconv.Itoa(ff.adj[v][v+1+ff.networkCols].capacity),
 					Name: fmt.Sprintf("%d-%d", v, v+1+ff.networkCols)}
-				ff.plot.NetCapacities[row+2][col] = Cell{Value: strconv.Itoa(ff.adj[v][v+1-ff.networkCols].capacity),
-					Name: fmt.Sprintf("%d-%d", v, v+1-ff.networkCols)}
 				v += ff.networkCols
 				row += 3
+			} else { // flow edges for the last network row
+				ff.plot.NetCapacities[row][col] = Cell{Value: strconv.Itoa(ff.adj[v][v+1-ff.networkCols].capacity),
+					Name: fmt.Sprintf("%d-%d", v, v+1-ff.networkCols)}
+				ff.plot.NetCapacities[row+1][col] = Cell{Value: strconv.Itoa(ff.adj[v][v+1].capacity), Name: fmt.Sprintf("%d-%d", v, v+1)}
+				v += ff.networkCols
+				row += 2
 			}
 		}
 		vStart++
@@ -736,7 +736,7 @@ func (ff *FordFulkerson) showFlows() error {
 		if flow > 0 {
 			color = "edgeflow"
 		}
-		ff.plot.SourceFlows[i] = Cell{Value: strconv.Itoa(flow),
+		ff.plot.SourceFlows[i] = Cell{Value: fmt.Sprintf("%d-%d, %d", v, w, flow),
 			Name: fmt.Sprintf("%d-%d", v, w), BGColor: color}
 	}
 
@@ -750,7 +750,7 @@ func (ff *FordFulkerson) showFlows() error {
 		if flow > 0 {
 			color = "edgeflow"
 		}
-		ff.plot.SinkFlows[i] = Cell{Value: strconv.Itoa(ff.adj[v][w].flow),
+		ff.plot.SinkFlows[i] = Cell{Value: fmt.Sprintf("%d-%d, %d", w, v, flow),
 			Name: fmt.Sprintf("%d-%d", v, w), BGColor: color}
 	}
 
@@ -764,57 +764,86 @@ func (ff *FordFulkerson) showFlows() error {
 	for col := 0; col < ff.networkCols-1; col++ {
 		v := vStart
 		for row := 0; row < (ff.networkRows-1)*3+1; {
-			// flow edges for all network rows
-			w := v + 1
-			flow := ff.adj[v][w].flow
-			color := "edgenoflow"
-			if flow > 0 {
-				color = "edgeflow"
-			}
-			ff.plot.NetFlows[row][col] = Cell{Value: strconv.Itoa(flow),
-				Name: fmt.Sprintf("%d-%d", v, w), BGColor: color}
+
 			// flow edges for the first network row
 			if v == vStart {
-				w := v + 1 + ff.networkCols
+				// flow edges for all network rows to the right vertex
+				w := v + 1
 				flow := ff.adj[v][w].flow
 				color := "edgenoflow"
 				if flow > 0 {
 					color = "edgeflow"
 				}
-				ff.plot.NetFlows[row+1][col] = Cell{Value: strconv.Itoa(ff.adj[v][w].flow),
+				ff.plot.NetFlows[row][col] = Cell{Value: fmt.Sprintf("%d-%d, %d", v, w, flow),
+					Name: fmt.Sprintf("%d-%d", v, w), BGColor: color}
+
+				// flow edge to the right-down vertex
+				w = v + 1 + ff.networkCols
+				flow = ff.adj[v][w].flow
+				color = "edgenoflow"
+				if flow > 0 {
+					color = "edgeflow"
+				}
+				ff.plot.NetFlows[row+1][col] = Cell{Value: fmt.Sprintf("%d-%d, %d", v, w, flow),
 					Name: fmt.Sprintf("%d-%d", v, w), BGColor: color}
 				v += ff.networkCols
 				row += 2
-			} else if v == vStart+(ff.networkRows-1)*ff.networkCols { // flow edges for the last network row
+			} else if v > vStart && v < vStart+(ff.networkRows-1)*ff.networkCols { // flow edges between first and last rows
+				// flow edge to the right-up vertex
 				w := v + 1 - ff.networkCols
 				flow := ff.adj[v][w].flow
 				color := "edgenoflow"
 				if flow > 0 {
 					color = "edgeflow"
 				}
-				ff.plot.NetFlows[row+1][col] = Cell{Value: strconv.Itoa(ff.adj[v][w].flow),
-					Name: fmt.Sprintf("%d-%d", v, w), BGColor: color}
-				v += ff.networkCols
-				row += 2
-			} else { // all the other network rows in-between first and last rows
-				w := v + 1 + ff.networkCols
-				flow := ff.adj[v][w].flow
-				color := "edgenoflow"
-				if flow > 0 {
-					color = "edgeflow"
-				}
-				ff.plot.NetFlows[row+1][col] = Cell{Value: strconv.Itoa(ff.adj[v][v+1+ff.networkCols].flow),
-					Name: fmt.Sprintf("%d-%d", v, v+1+ff.networkCols), BGColor: color}
-				w = v + 1 - ff.networkCols
+				ff.plot.NetFlows[row][col] = Cell{Value: fmt.Sprintf("%d-%d, %d", v, w, flow),
+					Name: fmt.Sprintf("%d-%d", v, v+1-ff.networkCols), BGColor: color}
+
+				// flow edges for all network rows to the right vertex
+				w = v + 1
 				flow = ff.adj[v][w].flow
 				color = "edgenoflow"
 				if flow > 0 {
 					color = "edgeflow"
 				}
-				ff.plot.NetFlows[row+2][col] = Cell{Value: strconv.Itoa(ff.adj[v][v+1-ff.networkCols].flow),
-					Name: fmt.Sprintf("%d-%d", v, v+1-ff.networkCols), BGColor: color}
+				ff.plot.NetFlows[row+1][col] = Cell{Value: fmt.Sprintf("%d-%d, %d", v, w, flow),
+					Name: fmt.Sprintf("%d-%d", v, w), BGColor: color}
+
+				// flow edge to the right-down vertex
+				w = v + 1 + ff.networkCols
+				flow = ff.adj[v][w].flow
+				color = "edgenoflow"
+				if flow > 0 {
+					color = "edgeflow"
+				}
+				ff.plot.NetFlows[row+2][col] = Cell{Value: fmt.Sprintf("%d-%d, %d", v, w, flow),
+					Name: fmt.Sprintf("%d-%d", v, v+1+ff.networkCols), BGColor: color}
+
 				v += ff.networkCols
 				row += 3
+			} else { // flow edges for the last network row
+				// flow edge to the right-up vertex
+				w := v + 1 - ff.networkCols
+				flow := ff.adj[v][w].flow
+				color := "edgenoflow"
+				if flow > 0 {
+					color = "edgeflow"
+				}
+				ff.plot.NetFlows[row][col] = Cell{Value: fmt.Sprintf("%d-%d, %d", v, w, flow),
+					Name: fmt.Sprintf("%d-%d", v, w), BGColor: color}
+
+				// flow edges for all network rows to the right vertex
+				w = v + 1
+				flow = ff.adj[v][w].flow
+				color = "edgenoflow"
+				if flow > 0 {
+					color = "edgeflow"
+				}
+				ff.plot.NetFlows[row+1][col] = Cell{Value: fmt.Sprintf("%d-%d, %d", v, w, flow),
+					Name: fmt.Sprintf("%d-%d", v, w), BGColor: color}
+
+				v += ff.networkCols
+				row += 2
 			}
 		}
 		vStart++
